@@ -32,7 +32,6 @@
 - 또한, 단순한 HTML크롤링이 아닌 OpenAPI Spec을 통째로 가져옵니다. ( JSON / YAML 형식, 쿠키 / 토큰 포함 )
 
 ## 사용법
-- 백엔드
 1. 환경변수 설정
 ```
 MONGODB_URI=몽고디비 Atlas 접속주소 ( 비번포함 )
