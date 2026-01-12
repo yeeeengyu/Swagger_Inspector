@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Swagger Threshold Chatbot</title>
+  <style>
+    :root { --b:#e5e7eb; --t:#111827; --m:#6b7280; --bg:#fafafa; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; background: var(--bg); color: var(--t); }
+    .wrap { max-width: 980px; margin: 32px auto; padding: 0 16px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .card { background:#fff; border:1px solid var(--b); border-radius:14px; padding:16px; }
+    .card h2 { margin:0 0 10px; font-size: 16px; }
+    .sub { color: var(--m); font-size: 12px; margin-top:4px; }
+    label { font-size: 12px; color: var(--m); display:block; margin: 10px 0 6px; }
+    input, textarea, select { width:100%; padding:10px 12px; border:1px solid var(--b); border-radius:10px; outline:none; font-size: 14px; background:#fff; }
+    textarea { min-height: 90px; resize: vertical; }
+    button { padding:10px 12px; border-radius:10px; border:1px solid var(--b); background:#fff; cursor:pointer; font-weight: 600; }
+    button.primary { background:#111827; color:#fff; border-color:#111827; }
+    button.danger { background:#fff; border-color:#ef4444; color:#ef4444; }
+    button:disabled { opacity: .55; cursor:not-allowed; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid var(--b); font-size: 12px; color: var(--m); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .log { border:1px solid var(--b); border-radius:12px; overflow:hidden; }
+    .msg { padding: 12px 14px; border-top: 1px solid var(--b); background:#fff; }
+    .msg:first-child { border-top:none; }
+    .msg .who { font-size: 12px; color: var(--m); margin-bottom: 6px; }
+    pre { margin:0; white-space: pre-wrap; word-break: break-word; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width: 860px){ .grid2{ grid-template-columns: 1fr; } }
+    .status { padding:10px 12px; border-radius:12px; border:1px dashed var(--b); background:#fff; }
+    .small { font-size:12px; color: var(--m); }
+    .right { margin-left:auto; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="row" style="align-items:center; margin-bottom: 12px;">
+      <div>
+        <div style="font-size:18px; font-weight:800;">Swagger Threshold Chatbot</div>
+        <div class="sub">OpenAPI 인덱싱 → VectorSearch → threshold 자동 게이트 → (필요 시) LLM</div>
+      </div>
+      <div class="right" style="min-width:320px;">
+        <label style="margin:0 0 6px;">Backend Base URL</label>
+        <input id="baseUrl" placeholder="http://localhost:8081" />
+        <div class="sub">예: http://localhost:8081 또는 배포 주소</div>
+      </div>
+    </div>
+
+    <div class="grid2">
+
+      <!-- Ingest -->
+      <div class="card">
+        <h2>1) Ingest (OpenAPI/Swagger → VectorDB 저장)</h2>
+
+        <label>Swagger/OpenAPI URL</label>
+        <input id="ingestUrl" placeholder="http://.../swagger-ui/index.html 또는 .../openapi.json" />
+
+        <label>Headers (JSON)</label>
+        <textarea id="ingestHeaders" class="mono" placeholder='{"Authorization":"Bearer ..."}'></textarea>
+        <div class="sub">인증 필요 없으면 빈칸 또는 {}.</div>
+
+        <div class="row" style="margin-top:10px;">
+          <div style="flex:1;">
+            <label>max_text_chars</label>
+            <input id="maxTextChars" type="number" value="2000" />
+          </div>
+          <div style="flex:1;">
+            <label>include</label>
+            <div class="row" style="gap:8px; margin-top:6px;">
+              <span class="pill"><input id="incOps" type="checkbox" checked /> operations</span>
+              <span class="pill"><input id="incSchemas" type="checkbox" checked /> schemas</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px;">
+          <button class="primary" id="btnIngest">Ingest</button>
+          <button id="btnHealth">Health</button>
+          <button class="danger" id="btnReset">Reset</button>
+        </div>
+
+        <div style="margin-top:12px;" class="status mono" id="ingestOut">ready</div>
+      </div>
+
+      <!-- Chat -->
+      <div class="card">
+        <h2>2) Chat</h2>
+
+        <label>Query</label>
+        <input id="query" placeholder="예: 로그인 토큰은 어디서 받나요?" />
+
+        <div class="row">
+          <div style="flex:1;">
+            <label>top_k</label>
+            <input id="topK" type="number" value="5" />
+          </div>
+          <div style="flex:1;">
+            <label>&nbsp;</label>
+            <button class="primary" id="btnSend" style="width:100%;">Send</button>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px;">
+          <span class="pill">used_llm: <b id="usedLlm">-</b></span>
+          <span class="pill">top_score: <b id="topScore">-</b></span>
+          <span class="pill">threshold: <b id="thValue">-</b></span>
+        </div>
+
+        <div style="margin-top:12px;" class="log" id="chatLog"></div>
+      </div>
+
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <h2>3) Citations (최근 응답 기준)</h2>
+      <div class="sub">VectorSearch 상위 문서(엔드포인트) 후보. threshold 미만이면 “유사 후보”로만 표시됩니다.</div>
+      <div class="status mono" id="citesOut">-</div>
+    </div>
+
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function loadBaseUrl() {
+      const saved = localStorage.getItem("baseUrl") || "http://localhost:8081";
+      $("baseUrl").value = saved;
+    }
+    function saveBaseUrl() {
+      localStorage.setItem("baseUrl", $("baseUrl").value.trim());
+    }
+    $("baseUrl").addEventListener("change", saveBaseUrl);
+
+    function base() {
+      const v = $("baseUrl").value.trim().replace(/\/+$/, "");
+      return v || "http://localhost:8081";
+    }
+
+    function safeJsonParse(s, fallback = {}) {
+      const t = (s || "").trim();
+      if (!t) return fallback;
+      try { return JSON.parse(t); } catch { return null; }
+    }
+
+    async function api(path, method = "GET", body = null) {
+      const url = base() + path;
+      const opt = { method, headers: { "Content-Type": "application/json" } };
+      if (body) opt.body = JSON.stringify(body);
+      const res = await fetch(url, opt);
+      const text = await res.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (!res.ok) {
+        const msg = data?.detail || data?.message || JSON.stringify(data);
+        throw new Error(`${res.status} ${res.statusText} - ${msg}`);
+      }
+      return data;
+    }
+
+    function setStatus(el, msg) {
+      el.textContent = msg;
+    }
+
+    function addMsg(who, content) {
+      const log = $("chatLog");
+      const div = document.createElement("div");
+      div.className = "msg";
+      div.innerHTML = `<div class="who">${who}</div><pre class="mono">${escapeHtml(content)}</pre>`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      return (str ?? "").toString()
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function renderCitations(citations) {
+      if (!citations || citations.length === 0) {
+        $("citesOut").textContent = "-";
+        return;
+      }
+      const lines = citations.map(c => {
+        const method = c.method || "";
+        const path = c.path || "";
+        const score = (typeof c.score === "number") ? c.score.toFixed(4) : c.score;
+        return `- ${method} ${path} | score=${score} | ${c.title || ""} | doc_id=${c.doc_id || ""}`.trim();
+      });
+      $("citesOut").textContent = lines.join("\n");
+    }
+
+    async function doHealth() {
+      const out = $("ingestOut");
+      setStatus(out, "loading...");
+      try {
+        const data = await api("/health");
+        setStatus(out, JSON.stringify(data, null, 2));
+      } catch (e) {
+        setStatus(out, e.message);
+      }
+    }
+
+    async function doReset() {
+      const out = $("ingestOut");
+      if (!confirm("정말 reset 하시겠습니까? (컬렉션 문서 전체 삭제)")) return;
+      setStatus(out, "resetting...");
+      try {
+        const data = await api("/reset", "POST", {});
+        setStatus(out, JSON.stringify(data, null, 2));
+      } catch (e) {
+        setStatus(out, e.message);
+      }
+    }
+
+    async function doIngest() {
+      const out = $("ingestOut");
+      setStatus(out, "ingesting...");
+      const headers = safeJsonParse($("ingestHeaders").value, {});
+      if (headers === null) {
+        setStatus(out, "Headers JSON 파싱 실패. 예: {\"Authorization\":\"Bearer ...\"}");
+        return;
+      }
+
+      const payload = {
+        url: $("ingestUrl").value.trim(),
+        headers,
+        include_operations: $("incOps").checked,
+        include_schemas: $("incSchemas").checked,
+        max_text_chars: Number($("maxTextChars").value || 2000),
+      };
+
+      try {
+        const data = await api("/ingest/openapi", "POST", payload);
+        setStatus(out, JSON.stringify(data, null, 2));
+        addMsg("SYSTEM", "인덱싱 완료. 이제 Chat이 동작합니다.");
+      } catch (e) {
+        setStatus(out, e.message);
+      }
+    }
+
+    async function doChat() {
+      const q = $("query").value.trim();
+      if (!q) return;
+
+      const topK = Number($("topK").value || 5);
+
+      addMsg("YOU", q);
+      $("query").value = "";
+
+      $("btnSend").disabled = true;
+      $("usedLlm").textContent = "-";
+      $("topScore").textContent = "-";
+      $("thValue").textContent = "-";
+      $("citesOut").textContent = "-";
+
+      try {
+        // ChatRequest에서 threshold 제거된 상태 기준: query, top_k만 보냄
+        const data = await api("/chat", "POST", { query: q, top_k: topK });
+
+        $("usedLlm").textContent = data.used_llm;
+        $("topScore").textContent = (typeof data.top_score === "number") ? data.top_score.toFixed(4) : data.top_score;
+        $("thValue").textContent = (typeof data.threshold === "number") ? data.threshold.toFixed(4) : data.threshold;
+
+        addMsg("BOT", data.answer || "(empty)");
+        renderCitations(data.citations || []);
+      } catch (e) {
+        addMsg("ERROR", e.message);
+      } finally {
+        $("btnSend").disabled = false;
+      }
+    }
+
+    // bind
+    $("btnHealth").addEventListener("click", doHealth);
+    $("btnReset").addEventListener("click", doReset);
+    $("btnIngest").addEventListener("click", doIngest);
+    $("btnSend").addEventListener("click", doChat);
+    $("query").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doChat();
+    });
+
+    // init
+    loadBaseUrl();
+    doHealth();
+  </script>
+</body>
+</html>
