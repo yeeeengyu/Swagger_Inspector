@@ -1,4 +1,5 @@
 # SWAGGER 인스펙터
+<img width="582" height="437" alt="image" src="https://github.com/user-attachments/assets/8b138047-a461-44f1-af75-08949a4e770f" />
 
 <img width="1125" height="851" alt="main" src="https://github.com/user-attachments/assets/af8ac357-ce95-4171-a6e2-13ca3bf5464b" />
 
